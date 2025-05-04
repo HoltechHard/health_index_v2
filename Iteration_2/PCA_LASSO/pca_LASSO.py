@@ -1,6 +1,3 @@
-"""
-模型对比脚本（修复UnboundLocalError）
-"""
 
 import pandas as pd
 import numpy as np
@@ -13,28 +10,28 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_squared_error
 from pathlib import Path
 
-# 配置参数
-plt.rcParams['font.sans-serif'] = ['SimHei']
+# Configuration settings
+plt.rcParams['font.sans-serif'] = ['Arial']
 plt.rcParams['axes.unicode_minus'] = False
 
 def load_data():
-    """加载数据和预处理"""
+    """Load and preprocess data"""
     feature_path = Path(r"D:\Desktop\Pca_LASSO_\final_40x10.xlsx")
     target_path = Path(r"D:\Desktop\Pca_LASSO_\Index.xlsx")
     
     if not feature_path.exists():
-        raise FileNotFoundError(f"特征文件不存在：{feature_path}")
+        raise FileNotFoundError(f"Feature file not found: {feature_path}")
     if not target_path.exists():
-        raise FileNotFoundError(f"目标文件不存在：{target_path}")
+        raise FileNotFoundError(f"Target file not found: {target_path}")
     
     X = pd.read_excel(feature_path, header=None).values
     y = pd.read_excel(target_path).iloc[:, 0].values
     
-    assert len(X) == len(y), f"数据量不匹配: 特征{len(X)}条，目标{len(y)}条"
+    assert len(X) == len(y), f"Data size mismatch: Features {len(X)} vs Target {len(y)}"
     return X, y
 
 def evaluate_model(y_true, y_pred, model_name):
-    """模型评估"""
+    """Model evaluation"""
     return {
         "Model": model_name,
         "R²": round(r2_score(y_true, y_pred), 4),
@@ -42,23 +39,23 @@ def evaluate_model(y_true, y_pred, model_name):
     }
 
 def plot_results(y_true, predictions, model_names):
-    """可视化对比"""
+    """Visualization comparison"""
     plt.figure(figsize=(12, 6))
     
     plt.subplot(1, 2, 1)
     for y_pred, name in zip(predictions, model_names):
         plt.scatter(y_true, y_pred, alpha=0.6, label=name)
     plt.plot([min(y_true), max(y_true)], [min(y_true), max(y_true)], 'k--')
-    plt.xlabel("实际值")
-    plt.ylabel("预测值")
+    plt.xlabel("Actual Values")
+    plt.ylabel("Predicted Values")
     plt.legend()
     
     plt.subplot(1, 2, 2)
     for y_pred, name in zip(predictions, model_names):
         residuals = y_true - y_pred
         plt.hist(residuals, bins=15, alpha=0.5, label=name)
-    plt.xlabel("残差")
-    plt.ylabel("频数")
+    plt.xlabel("Residuals")
+    plt.ylabel("Frequency")
     plt.legend()
     
     plt.tight_layout()
@@ -66,17 +63,17 @@ def plot_results(y_true, predictions, model_names):
     plt.show()
 
 def main():
-    # 1. 数据准备
+    # 1. Data preparation
     X, y = load_data()
-    print(f"数据形状：X{X.shape}, y{y.shape}")
+    print(f"Data shape: X{X.shape}, y{y.shape}")
     
-    # 2. 数据拆分与标准化
+    # 2. Data splitting & standardization
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
-    # 3. 模型定义与训练
+    # 3. Model definition & training
     models = {
         "PCR": {
             "pca": PCA(n_components=0.95),
@@ -94,22 +91,19 @@ def main():
     predictions = []
     
     for name, config in models.items():
-        best_model = None  # 显式初始化变量
+        best_model = None  # Explicit initialization
         
-        # PCR模型特殊处理
+        # Special handling for PCR
         if name == "PCR":
-            # PCA转换
             pca = config["pca"]
             model = config["model"]
             X_train_pca = pca.fit_transform(X_train_scaled)
             X_test_pca = pca.transform(X_test_scaled)
             
-            # 训练模型
             model.fit(X_train_pca, y_train)
             y_pred = model.predict(X_test_pca)
-            best_model = model  # 关键修复点
+            best_model = model  # Critical fix
         else:
-            # 其他模型训练
             if isinstance(config, GridSearchCV):
                 config.fit(X_train_scaled, y_train)
                 best_model = config.best_estimator_
@@ -117,19 +111,18 @@ def main():
                 best_model = config.fit(X_train_scaled, y_train)
             y_pred = best_model.predict(X_test_scaled)
         
-        # 记录结果
         predictions.append(y_pred)
         results.append(evaluate_model(y_test, y_pred, name))
         
-        # 交叉验证
+        # Cross-validation
         cv_scores = cross_val_score(
             best_model, X, y, cv=5, scoring='r2'
         )
-        print(f"\n{name}模型交叉验证R²：{np.mean(cv_scores):.3f} (±{np.std(cv_scores):.3f})")
+        print(f"\n{name} Cross-validation R²: {np.mean(cv_scores):.3f} (±{np.std(cv_scores):.3f})")
 
-    # 4. 结果展示与保存
+    # 4. Results presentation
     result_df = pd.DataFrame(results)
-    print("\n模型性能对比：")
+    print("\nModel Performance Comparison:")
     print(result_df)
     plot_results(y_test, predictions, models.keys())
     result_df.to_excel("model_comparison_results.xlsx", index=False)
